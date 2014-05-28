@@ -1,15 +1,6 @@
 #!/bin/sh
 version="0.5.0"
 
-# Arguments that will be passed from command line
-s3_bucket=""
-working_dir=`pwd`
-
-# Required executables
-aws_bin="aws"
-crawler_bin="pystock-crawler"
-shutdown_bin="shutdown"
-
 print_version() {
     echo "pystock-dailycrawl v$version"
 }
@@ -37,6 +28,14 @@ add_path() {
         PATH="${PATH:+"$PATH:"}$1"
     fi
 }
+
+# Arguments that will be passed from command line
+s3_bucket=""
+working_dir=`pwd`
+
+# Required executables
+aws_bin="aws"
+crawler_bin="pystock-crawler"
 
 # Some paths may be only added after login, which makes some commands such as 'aws'
 # unavailable in crontab's @reboot. Add them here just in case.
@@ -69,16 +68,26 @@ do
     esac
 done
 
-# Check if working directory is exist
+# Check if working directory exist
 if [ ! -d "$working_dir" ]; then
     error "directory '$working_dir' does not exist"
+    exit 1
+fi
+
+if [ ! "$s3_bucket" ]; then
+    error "must specify an S3 bucket"
     exit 1
 fi
 
 # Check if required commands are available
 check_bin $aws_bin
 check_bin $crawler_bin
-check_bin $shutdown_bin
+
+# Same time zone with US stock market
+TZ="America/New_York"
+
+# Maximum compression level
+GZIP="-9"
 
 echo $working_dir
 
