@@ -1,0 +1,89 @@
+#!/bin/sh
+log() {
+    echo [`date '+%Y-%m-%d %H:%M:%S'`] $*
+}
+
+# /usr/local/bin isn't in PATH on reboot
+export PATH=$PATH:/usr/local/bin
+
+export TZ="America/New_York"
+export GZIP="-9"
+
+S3_BUCKET="my-s3-bucket"
+WORKING_DIR="/home/pystock"
+CRAWLER_BIN="/usr/local/bin/pystock-crawler"
+AWS_BIN="/usr/local/bin/aws"
+SHUTDOWN_BIN="/sbin/shutdown"
+
+echo "============="
+echo " Daily Crawl "
+echo "============="
+
+log "Waiting for network to be ready"
+while [ true ]
+do
+    ping -c 1 google.com > /dev/null
+    if [ "$?" = "0" ]; then
+        log "Network is ready"
+        break;
+    else
+        log "Network is not ready"
+        sleep 1
+    fi
+done
+
+cd $WORKING_DIR
+log "Working directory: `pwd`"
+
+if [ "$1" ]; then
+    today=`date +%Y%m%d -d $1`
+    today_dir=`date +%Y/%m/%d -d $1`
+else
+    today=`date +%Y%m%d`
+    today_dir=`date +%Y/%m/%d`
+fi
+
+if [ "$2" ]; then
+    yesterday=`date +%Y%m%d -d $2`
+else
+    yesterday=`date -d 'yesterday' +%Y%m%d`
+fi
+
+log "Today: $today"
+log "Yesterday: $yesterday"
+
+out_dir="./$today_dir"
+log "Creating output directory: $out_dir"
+mkdir -p $out_dir
+
+log "Crawling symbols"
+$CRAWLER_BIN symbols NYSE,NASDAQ -o $out_dir/symbols.txt -l $out_dir/symbols.log
+
+log "Crawling prices"
+$CRAWLER_BIN prices $out_dir/symbols.txt -o $out_dir/prices.csv -s $yesterday -e $today -l $out_dir/prices.log
+
+log "Crawling reports"
+$CRAWLER_BIN reports $out_dir/symbols.txt -o $out_dir/reports.csv -s $today -l $out_dir/reports.log
+
+cd $out_dir
+
+log "Compressing $out_dir/symbols.*"
+tar -czf symbols.tar.gz symbols.*
+
+log "Compressing $out_dir/prices.*"
+tar -czf prices.tar.gz prices.*
+
+log "Compressing $out_dir/reports.*"
+tar -czf reports.tar.gz reports.*
+
+log "Uploading $out_dir/symbols.tar.gz"
+$AWS_BIN s3 cp symbols.tar.gz s3://$S3_BUCKET/$today_dir/symbols.tar.gz
+
+log "Uploading $out_dir/prices.tar.gz"
+$AWS_BIN s3 cp prices.tar.gz s3://$S3_BUCKET/$today_dir/prices.tar.gz
+
+log "Uploading $out_dir/reports.tar.gz"
+$AWS_BIN s3 cp reports.tar.gz s3://$S3_BUCKET/$today_dir/reports.tar.gz
+
+# log "Powering off after 10 mins"
+# $SHUTDOWN_BIN -P 10
