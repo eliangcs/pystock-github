@@ -16,25 +16,32 @@ print_version() {
 
 print_help() {
     print_version
-    echo "Usage: $0"
+    echo "Usage:"
+    echo "  dailycrawl [-s S3_BUCKET] [-w WORKING_DIR]"
+    echo "  dailycrawl (-h | --help)"
+    echo "  dailycrawl (-v | --version)"
 }
 
 error() {
     echo "Error: $1"
 }
 
+# Check if an executable exists
 check_bin() {
     hash $1 2>/dev/null || { error "'$1' cannot be found in PATH: $PATH"; exit 2; }
 }
 
-# Add a path into PATH if it does not exist
+# Add a directory into PATH if it does not exist in PATH
 add_path() {
     if [ -d "$1" ] && [[ ":$PATH:" != *":$1:"* ]]; then
         PATH="${PATH:+"$PATH:"}$1"
     fi
 }
 
+# Some paths may be only added after login, which makes some commands such as 'aws'
+# unavailable in crontab's @reboot. Add them here just in case.
 add_path "/usr/local/bin"
+add_path "/sbin"
 
 # Parse command arguments
 while test "$1" != ""
@@ -68,6 +75,7 @@ if [ ! -d "$working_dir" ]; then
     exit 1
 fi
 
+# Check if required commands are available
 check_bin $aws_bin
 check_bin $crawler_bin
 check_bin $shutdown_bin
