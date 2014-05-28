@@ -1,4 +1,81 @@
 #!/bin/sh
+version="0.5.0"
+
+# Arguments that will be passed from command line
+s3_bucket=""
+working_dir=`pwd`
+
+# Required executables
+aws_bin="aws"
+crawler_bin="pystock-crawler"
+shutdown_bin="shutdown"
+
+print_version() {
+    echo "pystock-dailycrawl v$version"
+}
+
+print_help() {
+    print_version
+    echo "Usage: $0"
+}
+
+error() {
+    echo "Error: $1"
+}
+
+check_bin() {
+    hash $1 2>/dev/null || { error "'$1' cannot be found in PATH: $PATH"; exit 2; }
+}
+
+# Add a path into PATH if it does not exist
+add_path() {
+    if [ -d "$1" ] && [[ ":$PATH:" != *":$1:"* ]]; then
+        PATH="${PATH:+"$PATH:"}$1"
+    fi
+}
+
+add_path "/usr/local/bin"
+
+# Parse command arguments
+while test "$1" != ""
+do
+    case $1 in
+        --help|-h)
+            print_help
+            exit 0
+            ;;
+        --version|-v)
+            print_version
+            exit 0
+            ;;
+        --s3-bucket|-s)
+            shift
+            s3_bucket="$1"
+            ;;
+        --working-dir|-w)
+            shift
+            working_dir="$1"
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+# Check if working directory is exist
+if [ ! -d "$working_dir" ]; then
+    error "directory '$working_dir' does not exist"
+    exit 1
+fi
+
+check_bin $aws_bin
+check_bin $crawler_bin
+check_bin $shutdown_bin
+
+echo $working_dir
+
+exit 0
+
 log() {
     echo [`date '+%Y-%m-%d %H:%M:%S'`] $*
 }
