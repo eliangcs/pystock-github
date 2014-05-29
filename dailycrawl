@@ -1,6 +1,22 @@
 #!/bin/sh
 version="0.5.0"
 
+# Arguments that will be passed from command line
+s3_bucket=""
+script_dir=`pwd`
+working_dir=`pwd`
+end_date=`date +%Y%m%d`
+
+# Required executables
+aws_bin="aws"
+crawler_bin="pystock-crawler"
+
+# Same time zone with US stock market
+TZ="America/New_York"
+
+# Maximum compression level
+GZIP="-9"
+
 print_version() {
     echo "pystock-dailycrawl v$version"
 }
@@ -8,13 +24,21 @@ print_version() {
 print_help() {
     print_version
     echo "Usage:"
-    echo "  dailycrawl [-s S3_BUCKET] [-w WORKING_DIR]"
+    echo "  dailycrawl [-b S3_BUCKET] [-c SCRIPT_DIR] [-w WORKING_DIR] [-s START_DATE] [-e END_DATE]"
     echo "  dailycrawl (-h | --help)"
     echo "  dailycrawl (-v | --version)"
 }
 
 error() {
     echo "Error: $1"
+}
+
+# Check if a directory exists
+check_dir() {
+    if [ ! -d "$1" ]; then
+        error "directory '$1' does not exist"
+        exit 1
+    fi
 }
 
 # Check if an executable exists
@@ -29,13 +53,24 @@ add_path() {
     fi
 }
 
-# Arguments that will be passed from command line
-s3_bucket=""
-working_dir=`pwd`
+# Check if a date (YYYYMMDD) is a holiday
+is_holiday() {
+    # Saturday or Sunday?
+    weekday=`date -j -f "%Y%m%d" $1 +%u`
+    if [ "$weekday" = 6 -o "$weekday" = 7 ]; then
+        echo $1
+    else
+        # US holiday?
+        year=`date -j -f "%Y%m%d" $1 +%Y`
+        holiday_file="$script_dir/holidays/$year.txt"
+        cat $holiday_file | grep $1
+    fi
+}
 
-# Required executables
-aws_bin="aws"
-crawler_bin="pystock-crawler"
+# Get the previous date of a date (YYYYMMDD)
+get_prev_date() {
+    date -j -v -1d -f "%Y%m%d" $1 +%Y%m%d
+}
 
 # Some paths may be only added after login, which makes some commands such as 'aws'
 # unavailable in crontab's @reboot. Add them here just in case.
@@ -54,13 +89,25 @@ do
             print_version
             exit 0
             ;;
-        --s3-bucket|-s)
+        --s3-bucket|-b)
             shift
             s3_bucket="$1"
+            ;;
+        --script-dir|-c)
+            shift
+            script_dir="$1"
             ;;
         --working-dir|-w)
             shift
             working_dir="$1"
+            ;;
+        --start-date|-s)
+            shift
+            start_date="$1"
+            ;;
+        --end-date|-e)
+            shift
+            end_date="$1"
             ;;
         *)
             shift
@@ -68,34 +115,36 @@ do
     esac
 done
 
-# Check if working directory exist
-if [ ! -d "$working_dir" ]; then
-    error "directory '$working_dir' does not exist"
-    exit 1
-fi
-
 if [ ! "$s3_bucket" ]; then
     error "must specify an S3 bucket"
     exit 1
 fi
 
+# Check directories
+check_dir $working_dir
+check_dir $script_dir
+
 # Check if required commands are available
 check_bin $aws_bin
 check_bin $crawler_bin
 
-# Same time zone with US stock market
-TZ="America/New_York"
+# If start_date is not specified, set it to the first previous
+# non-holiday (counting backward from end_date)
+if [ ! "$start_date" ]; then
+    start_date=`get_prev_date $end_date`
+    while [ `is_holiday $start_date` ]
+    do
+        start_date=`get_prev_date $start_date`
+    done
+fi
 
-# Maximum compression level
-GZIP="-9"
-
-echo $working_dir
+echo "S3 bucket: $s3_bucket"
+echo "Script directory: $script_dir"
+echo "Working directory: $working_dir"
+echo "Start date: $start_date"
+echo "End date: $end_date"
 
 exit 0
-
-log() {
-    echo [`date '+%Y-%m-%d %H:%M:%S'`] $*
-}
 
 # /usr/local/bin isn't in PATH on reboot
 export PATH=$PATH:/usr/local/bin
