@@ -24,7 +24,7 @@ print_version() {
 print_help() {
     print_version
     echo "Usage:"
-    echo "  dailycrawl [-b S3_BUCKET] [-c SCRIPT_DIR] [-w WORKING_DIR] [-s START_DATE] [-e END_DATE]"
+    echo "  dailycrawl [-b S3_BUCKET] [-c SCRIPT_DIR] [-w WORKING_DIR] [-s START_DATE] [-e END_DATE] [-o OUTPUT_DIR]"
     echo "  dailycrawl (-h | --help)"
     echo "  dailycrawl (-v | --version)"
 }
@@ -109,6 +109,10 @@ do
             shift
             end_date="$1"
             ;;
+        --output-dir|-o)
+            shift
+            output_dir="$1"
+            ;;
         *)
             shift
             ;;
@@ -138,11 +142,20 @@ if [ ! "$start_date" ]; then
     done
 fi
 
+if [ ! "$output_dir" ]; then
+    date_dir=`date -j -f "%Y%m%d" $end_date +%Y/%m/%d`
+    output_dir="$working_dir/$date_dir"
+    mkdir -p $output_dir
+else
+    check_dir $output_dir
+fi
+
+echo "Start date: $start_date"
+echo "End date: $end_date"
 echo "S3 bucket: $s3_bucket"
 echo "Script directory: $script_dir"
 echo "Working directory: $working_dir"
-echo "Start date: $start_date"
-echo "End date: $end_date"
+echo "Output directory: $output_dir"
 
 exit 0
 
