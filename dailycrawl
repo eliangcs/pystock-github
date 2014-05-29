@@ -132,6 +132,12 @@ check_dir $script_dir
 check_bin $aws_bin
 check_bin $crawler_bin
 
+# Do nothing if end_date is holiday
+if [ `is_holiday $end_date` ]; then
+    echo "'$end_date' is holiday, stock market is closed"
+    exit 0
+fi
+
 # If start_date is not specified, set it to the first previous
 # non-holiday (counting backward from end_date)
 if [ ! "$start_date" ]; then
@@ -142,6 +148,7 @@ if [ ! "$start_date" ]; then
     done
 fi
 
+# Set output directory
 if [ ! "$output_dir" ]; then
     date_dir=`date -j -f "%Y%m%d" $end_date +%Y/%m/%d`
     output_dir="$working_dir/$date_dir"
@@ -157,89 +164,37 @@ echo "Script directory: $script_dir"
 echo "Working directory: $working_dir"
 echo "Output directory: $output_dir"
 
-exit 0
+orig_dir=`pwd`
+cd $working_dir
 
-# /usr/local/bin isn't in PATH on reboot
-export PATH=$PATH:/usr/local/bin
+echo "Crawling symbols"
+$crawler_bin symbols NYSE,NASDAQ -o $output_dir/symbols.txt -l $output_dir/symbols.log
 
-export TZ="America/New_York"
-export GZIP="-9"
+echo "Crawling prices"
+$crawler_bin prices $output_dir/symbols.txt -o $output_dir/prices.csv -s $start_date -e $end_date -l $output_dir/prices.log
 
-S3_BUCKET="my-s3-bucket"
-WORKING_DIR="/home/pystock"
-CRAWLER_BIN="/usr/local/bin/pystock-crawler"
-AWS_BIN="/usr/local/bin/aws"
-SHUTDOWN_BIN="/sbin/shutdown"
+echo "Crawling reports"
+$crawler_bin reports $out_output_dirdir/symbols.txt -o $output_dir/reports.csv -s $start_date -l $output_dir/reports.log
 
-echo "============="
-echo " Daily Crawl "
-echo "============="
+cd $output_dir
 
-log "Waiting for network to be ready"
-while [ true ]
-do
-    ping -c 1 google.com > /dev/null
-    if [ "$?" = "0" ]; then
-        log "Network is ready"
-        break;
-    else
-        log "Network is not ready"
-        sleep 1
-    fi
-done
+echo "Compressing $output_dir/symbols.*"
+tar -czf symbols.tar.gz symbols.txt symbols.log
 
-cd $WORKING_DIR
-log "Working directory: `pwd`"
+echo "Compressing $output_dir/prices.*"
+tar -czf prices.tar.gz prices.csv prices.log
 
-if [ "$1" ]; then
-    today=`date +%Y%m%d -d $1`
-    today_dir=`date +%Y/%m/%d -d $1`
-else
-    today=`date +%Y%m%d`
-    today_dir=`date +%Y/%m/%d`
-fi
+echo "Compressing $output_dir/reports.*"
+tar -czf reports.tar.gz reports.csv reports.log
 
-if [ "$2" ]; then
-    yesterday=`date +%Y%m%d -d $2`
-else
-    yesterday=`date -d 'yesterday' +%Y%m%d`
-fi
+echo "Uploading $output_dir/symbols.tar.gz"
+$aws_bin s3 cp symbols.tar.gz s3://$s3_bucket/$today_dir/symbols.tar.gz
 
-log "Today: $today"
-log "Yesterday: $yesterday"
+echo "Uploading $output_dir/prices.tar.gz"
+$aws_bin s3 cp prices.tar.gz s3://$s3_bucket/$today_dir/prices.tar.gz
 
-out_dir="./$today_dir"
-log "Creating output directory: $out_dir"
-mkdir -p $out_dir
+echo "Uploading $output_dir/reports.tar.gz"
+$aws_bin s3 cp reports.tar.gz s3://$s3_bucket/$today_dir/reports.tar.gz
 
-log "Crawling symbols"
-$CRAWLER_BIN symbols NYSE,NASDAQ -o $out_dir/symbols.txt -l $out_dir/symbols.log
-
-log "Crawling prices"
-$CRAWLER_BIN prices $out_dir/symbols.txt -o $out_dir/prices.csv -s $yesterday -e $today -l $out_dir/prices.log
-
-log "Crawling reports"
-$CRAWLER_BIN reports $out_dir/symbols.txt -o $out_dir/reports.csv -s $today -l $out_dir/reports.log
-
-cd $out_dir
-
-log "Compressing $out_dir/symbols.*"
-tar -czf symbols.tar.gz symbols.*
-
-log "Compressing $out_dir/prices.*"
-tar -czf prices.tar.gz prices.*
-
-log "Compressing $out_dir/reports.*"
-tar -czf reports.tar.gz reports.*
-
-log "Uploading $out_dir/symbols.tar.gz"
-$AWS_BIN s3 cp symbols.tar.gz s3://$S3_BUCKET/$today_dir/symbols.tar.gz
-
-log "Uploading $out_dir/prices.tar.gz"
-$AWS_BIN s3 cp prices.tar.gz s3://$S3_BUCKET/$today_dir/prices.tar.gz
-
-log "Uploading $out_dir/reports.tar.gz"
-$AWS_BIN s3 cp reports.tar.gz s3://$S3_BUCKET/$today_dir/reports.tar.gz
-
-# log "Powering off after 10 mins"
-# $SHUTDOWN_BIN -P 10
+cd $orig_dir
+echo "Done"
