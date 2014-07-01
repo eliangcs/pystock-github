@@ -1,5 +1,5 @@
-#!/bin/sh
-version="0.5.0"
+#!/bin/bash
+version="0.6.0"
 
 # Arguments that will be passed from command line
 s3_bucket=""
@@ -56,12 +56,12 @@ add_path() {
 # Check if a date (YYYYMMDD) is a holiday
 is_holiday() {
     # Saturday or Sunday?
-    weekday=`date -j -f "%Y%m%d" $1 +%u`
+    weekday=`date -d $1 +%u`
     if [ "$weekday" = 6 -o "$weekday" = 7 ]; then
         echo $1
     else
         # US holiday?
-        year=`date -j -f "%Y%m%d" $1 +%Y`
+        year=`date -d $1 +%Y`
         holiday_file="$script_dir/holidays/$year.txt"
         cat $holiday_file | grep $1
     fi
@@ -69,7 +69,7 @@ is_holiday() {
 
 # Get the previous date of a date (YYYYMMDD)
 get_prev_date() {
-    date -j -v -1d -f "%Y%m%d" $1 +%Y%m%d
+    date -d "$1 -1 day" +%Y%m%d
 }
 
 # Some paths may be only added after login, which makes some commands such as 'aws'
@@ -149,8 +149,8 @@ if [ ! "$start_date" ]; then
 fi
 
 # Set output directory
+date_dir=`date -d $end_date +%Y/%m/%d`
 if [ ! "$output_dir" ]; then
-    date_dir=`date -j -f "%Y%m%d" $end_date +%Y/%m/%d`
     output_dir="$working_dir/$date_dir"
     mkdir -p $output_dir
 else
@@ -174,7 +174,7 @@ echo "Crawling prices"
 $crawler_bin prices $output_dir/symbols.txt -o $output_dir/prices.csv -s $start_date -e $end_date -l $output_dir/prices.log
 
 echo "Crawling reports"
-$crawler_bin reports $out_output_dirdir/symbols.txt -o $output_dir/reports.csv -s $start_date -l $output_dir/reports.log
+$crawler_bin reports $output_dir/symbols.txt -o $output_dir/reports.csv -s $start_date -l $output_dir/reports.log
 
 cd $output_dir
 
@@ -188,13 +188,13 @@ echo "Compressing $output_dir/reports.*"
 tar -czf reports.tar.gz reports.csv reports.log
 
 echo "Uploading $output_dir/symbols.tar.gz"
-$aws_bin s3 cp symbols.tar.gz s3://$s3_bucket/$today_dir/symbols.tar.gz
+$aws_bin s3 cp symbols.tar.gz s3://$s3_bucket/$date_dir/symbols.tar.gz
 
 echo "Uploading $output_dir/prices.tar.gz"
-$aws_bin s3 cp prices.tar.gz s3://$s3_bucket/$today_dir/prices.tar.gz
+$aws_bin s3 cp prices.tar.gz s3://$s3_bucket/$date_dir/prices.tar.gz
 
 echo "Uploading $output_dir/reports.tar.gz"
-$aws_bin s3 cp reports.tar.gz s3://$s3_bucket/$today_dir/reports.tar.gz
+$aws_bin s3 cp reports.tar.gz s3://$s3_bucket/$date_dir/reports.tar.gz
 
 cd $orig_dir
 echo "Done"
