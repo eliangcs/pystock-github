@@ -1,5 +1,11 @@
 #!/bin/bash
-version="0.6.0"
+version="0.6.1"
+
+# Same time zone with US stock market
+export TZ="America/New_York"
+
+# Maximum compression level
+export GZIP="-9"
 
 # Arguments that will be passed from command line
 s3_bucket=""
@@ -10,12 +16,6 @@ end_date=`date +%Y%m%d`
 # Required executables
 aws_bin="aws"
 crawler_bin="pystock-crawler"
-
-# Same time zone with US stock market
-TZ="America/New_York"
-
-# Maximum compression level
-GZIP="-9"
 
 print_version() {
     echo "pystock-dailycrawl v$version"
