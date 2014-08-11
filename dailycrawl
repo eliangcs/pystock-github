@@ -11,14 +11,15 @@ export GZIP="-9"
 s3_bucket=""
 script_dir=`pwd`
 working_dir=`pwd`
-end_date=`date +%Y%m%d`
+end_date=""
+#end_date=`date +%Y%m%d`
 
 # Required executables
 aws_bin="aws"
 crawler_bin="pystock-crawler"
 
 print_version() {
-    echo "pystock-dailycrawl v$version"
+    echo "pystock-dailycrawl $version"
 }
 
 print_help() {
@@ -50,6 +51,19 @@ check_bin() {
 add_path() {
     if [ -d "$1" ] && [[ ":$PATH:" != *":$1:"* ]]; then
         PATH="${PATH:+"$PATH:"}$1"
+    fi
+}
+
+# If historical price data on Yahoo Finance is ready now, return today
+# Otherwise, return yesterday
+get_end_date() {
+    # Assume today's price data on Yahoo Finance is ready at 22:00
+    yahoo_ready="22:00"
+    now=`date +%H:%M`
+    if [ "$now" \< "$yahoo_ready" ]; then
+        date -d "-1 day" +%Y%m%d
+    else
+        date +%Y%m%d
     fi
 }
 
@@ -122,6 +136,11 @@ done
 if [ ! "$s3_bucket" ]; then
     error "must specify an S3 bucket"
     exit 1
+fi
+
+# Auto-set end_date if not specified
+if [ ! "$end_date" ]; then
+    end_date=`get_end_date`
 fi
 
 # Check directories
