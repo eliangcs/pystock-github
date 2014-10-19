@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.0"
+version="0.8.0"
 
 # Same time zone with US stock market
 export TZ="America/New_York"
@@ -187,7 +187,7 @@ orig_dir=`pwd`
 cd $working_dir
 
 echo "Crawling symbols"
-$crawler_bin symbols NYSE,NASDAQ -o $output_dir/symbols.txt -l $output_dir/symbols.log
+$crawler_bin symbols NYSE,NASDAQ,AMEX -o $output_dir/symbols.txt -l $output_dir/symbols.log
 
 echo "Crawling prices"
 $crawler_bin prices $output_dir/symbols.txt -o $output_dir/prices.csv -s $start_date -e $end_date -l $output_dir/prices.log
