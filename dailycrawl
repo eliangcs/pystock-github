@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.8.0"
+version="0.1.0"
 
 # Same time zone with US stock market
 export TZ="America/New_York"
@@ -8,24 +8,23 @@ export TZ="America/New_York"
 export GZIP="-9"
 
 # Arguments that will be passed from command line
-s3_bucket=""
-script_dir=`pwd`
-working_dir=`pwd`
+script_dir=`pwd`    # Directory containing this script, which is used to locate holiday files
+repo_dir=""         # Where pystock-crawler works and output files go
 end_date=""
-#end_date=`date +%Y%m%d`
 
 # Required executables
 aws_bin="aws"
+git_bin="git"
 crawler_bin="pystock-crawler"
 
 print_version() {
-    echo "pystock-dailycrawl $version"
+    echo "pystock-github $version"
 }
 
 print_help() {
     print_version
     echo "Usage:"
-    echo "  dailycrawl [-b S3_BUCKET] [-c SCRIPT_DIR] [-w WORKING_DIR] [-s START_DATE] [-e END_DATE] [-o OUTPUT_DIR]"
+    echo "  dailycrawl [-r REPO_DIR] [-c SCRIPT_DIR] [-s START_DATE] [-e END_DATE]"
     echo "  dailycrawl (-h | --help)"
     echo "  dailycrawl (-v | --version)"
 }
@@ -103,17 +102,13 @@ do
             print_version
             exit 0
             ;;
-        --s3-bucket|-b)
+        --repo-dir|-r)
             shift
-            s3_bucket="$1"
+            repo_dir="$1"
             ;;
         --script-dir|-c)
             shift
             script_dir="$1"
-            ;;
-        --working-dir|-w)
-            shift
-            working_dir="$1"
             ;;
         --start-date|-s)
             shift
@@ -123,18 +118,14 @@ do
             shift
             end_date="$1"
             ;;
-        --output-dir|-o)
-            shift
-            output_dir="$1"
-            ;;
         *)
             shift
             ;;
     esac
 done
 
-if [ ! "$s3_bucket" ]; then
-    error "must specify an S3 bucket"
+if [ ! "$repo_dir" ]; then
+    error "must specify a Git repo"
     exit 1
 fi
 
@@ -144,10 +135,11 @@ if [ ! "$end_date" ]; then
 fi
 
 # Check directories
-check_dir $working_dir
+check_dir $repo_dir
 check_dir $script_dir
 
 # Check if required commands are available
+check_bin $git_bin
 check_bin $aws_bin
 check_bin $crawler_bin
 
@@ -167,53 +159,40 @@ if [ ! "$start_date" ]; then
     done
 fi
 
-# Set output directory
+# Create output directory: REPO_DIR/YYYY/MM/DD
 date_dir=`date -d $end_date +%Y/%m/%d`
-if [ ! "$output_dir" ]; then
-    output_dir="$working_dir/$date_dir"
-    mkdir -p $output_dir
-else
-    check_dir $output_dir
-fi
+output_dir="$working_dir/$date_dir"
+mkdir -p $output_dir
 
 echo "Start date: $start_date"
 echo "End date: $end_date"
-echo "S3 bucket: $s3_bucket"
+echo "Repo directory: $repo_dir"
 echo "Script directory: $script_dir"
-echo "Working directory: $working_dir"
 echo "Output directory: $output_dir"
 
 orig_dir=`pwd`
-cd $working_dir
+cd $repo_dir
 
-echo "Crawling symbols"
+echo "Crawling symbols..."
 $crawler_bin symbols NYSE,NASDAQ,AMEX -o $output_dir/symbols.txt -l $output_dir/symbols.log
 
-echo "Crawling prices"
+echo "Crawling prices..."
 $crawler_bin prices $output_dir/symbols.txt -o $output_dir/prices.csv -s $start_date -e $end_date -l $output_dir/prices.log
 
-echo "Crawling reports"
+echo "Crawling reports..."
 $crawler_bin reports $output_dir/symbols.txt -o $output_dir/reports.csv -s $start_date -l $output_dir/reports.log
 
 cd $output_dir
 
-echo "Compressing $output_dir/symbols.*"
-tar -czf symbols.tar.gz symbols.txt symbols.log
+echo "Compressing $output_dir..."
 
-echo "Compressing $output_dir/prices.*"
-tar -czf prices.tar.gz prices.csv prices.log
+tar -czf data.tar.gz symbols.txt prices.csv reports.csv
 
-echo "Compressing $output_dir/reports.*"
-tar -czf reports.tar.gz reports.csv reports.log
+cd $working_dir
 
-echo "Uploading $output_dir/symbols.tar.gz"
-$aws_bin s3 cp symbols.tar.gz s3://$s3_bucket/$date_dir/symbols.tar.gz
-
-echo "Uploading $output_dir/prices.tar.gz"
-$aws_bin s3 cp prices.tar.gz s3://$s3_bucket/$date_dir/prices.tar.gz
-
-echo "Uploading $output_dir/reports.tar.gz"
-$aws_bin s3 cp reports.tar.gz s3://$s3_bucket/$date_dir/reports.tar.gz
+$git_bin add *.tar.gz
+$git_bin commit -m '$end_date'
+$git_bin push origin master
 
 cd $orig_dir
 echo "Done"
