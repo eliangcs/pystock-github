@@ -191,10 +191,11 @@ filename=`date -d $end_date +%Y%m%d`
 
 tar -czf $repo_dir/$year_dir/$filename.tar.gz symbols.txt prices.csv reports.csv
 
-cd $working_dir
+cd $repo_dir
 
+echo "Committing to Git repo..."
 $git_bin add *.tar.gz
-$git_bin commit -m '$end_date'
+$git_bin commit -m "$end_date"
 $git_bin push origin master
 
 cd $orig_dir
