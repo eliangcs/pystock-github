@@ -161,7 +161,7 @@ fi
 
 # Create output directory: REPO_DIR/YYYY/MM/DD
 date_dir=`date -d $end_date +%Y/%m/%d`
-output_dir="$working_dir/$date_dir"
+output_dir="$repo_dir/$date_dir"
 mkdir -p $output_dir
 
 echo "Start date: $start_date"
@@ -186,7 +186,10 @@ cd $output_dir
 
 echo "Compressing $output_dir..."
 
-tar -czf data.tar.gz symbols.txt prices.csv reports.csv
+year_dir=`date -d $end_date +%Y`
+filename=`date -d $end_date +%Y%m%d`
+
+tar -czf $repo_dir/$year_dir/$filename.tar.gz symbols.txt prices.csv reports.csv
 
 cd $working_dir
 
