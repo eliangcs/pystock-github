@@ -13,7 +13,6 @@ repo_dir=""         # Where pystock-crawler works and output files go
 end_date=""
 
 # Required executables
-aws_bin="aws"
 git_bin="git"
 crawler_bin="pystock-crawler"
 
@@ -140,7 +139,6 @@ check_dir $script_dir
 
 # Check if required commands are available
 check_bin $git_bin
-check_bin $aws_bin
 check_bin $crawler_bin
 
 # Do nothing if end_date is holiday
