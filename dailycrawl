@@ -194,7 +194,7 @@ cd $repo_dir
 echo "Committing to Git repo..."
 $git_bin add *.tar.gz
 $git_bin commit -m "$end_date"
-$git_bin push origin master
+$git_bin push origin HEAD
 
 cd $orig_dir
 echo "Done"
