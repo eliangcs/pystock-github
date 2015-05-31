@@ -15,6 +15,7 @@ end_date=""
 # Required executables
 git_bin="git"
 crawler_bin="pystock-crawler"
+genindex_bin="$script_dir/genindex"
 
 print_version() {
     echo "pystock-github $version"
@@ -189,10 +190,16 @@ filename=`date -d $end_date +%Y%m%d`
 
 tar -czf $repo_dir/$year_dir/$filename.tar.gz symbols.txt prices.csv reports.csv
 
+echo "Generating index pages..."
+$genindex_bin $repo_dir --html --txt
+$genindex_bin $repo_dir/$year_dir --html --txt
+
 cd $repo_dir
 
 echo "Committing to Git repo..."
 $git_bin add *.tar.gz
+$git_bin add *index.txt
+$git_bin add *index.html
 $git_bin commit -m "$end_date"
 $git_bin push origin HEAD
 
