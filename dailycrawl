@@ -190,7 +190,7 @@ filename=`date -d $end_date +%Y%m%d`
 tar -czf $repo_dir/$year_dir/$filename.tar.gz symbols.txt prices.csv reports.csv
 
 echo "Generating index pages..."
-$genindex_bin="$script_dir/genindex"
+genindex_bin="$script_dir/genindex"
 $genindex_bin $repo_dir --html --txt
 $genindex_bin $repo_dir/$year_dir --html --txt
 
